@@ -37,26 +37,6 @@ Plot estimates from a \code{BMSC} object.
 \examples{
  \donttest{
 
- data(BSE)
-
- # Normal robust regression of data coming from a body representation paradigm
- # with a control sample of 12 participants and one patient with
- # unilateral brachial plexus lesion
- mdl <- BMSC(formula = RT ~ Body.District * Congruency * Side +
-             (Body.District + Congruency + Side | ID),
-             data_ctrl = data.ctrl,
-             data_pt = data.pt,
-             cores = 4)
-
- # generate a summary of the results
- summary(mdl)
-
- # posterior predictive p-value checking
- pp_check(mdl, limited = FALSE)
-
- # plot of the results
- plot(mdl)
-
 # simulation of healthy controls data
 
 Sigma.ctrl <- matrix(cbind(1, .7,  .7, 1) ,nrow=2)
@@ -101,7 +81,7 @@ cor(dat.pt)
 
 # fit the single case model
 
-mdl.reg <- BMSC(y ~ x, data_ctrl = dat.ctrl, data_pt = dat.pt, seed = 10)
+mdl.reg <- BMSC(y ~ x, data_ctrl = dat.ctrl, data_sc = dat.pt, seed = 10)
 
 # summarize the data
 

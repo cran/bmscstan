@@ -72,7 +72,7 @@ cor(dat.pt)
 
 # fit the single case model
 
-mdl.reg <- BMSC(y ~ x, data_ctrl = dat.ctrl, data_pt = dat.pt, seed = 10)
+mdl.reg <- BMSC(y ~ x, data_ctrl = dat.ctrl, data_sc = dat.pt, seed = 10)
 
 # summarize the data
 
