@@ -10,11 +10,12 @@ BMSC(
   data_sc,
   cores = 1,
   chains = 4,
-  warmup = 2000,
   iter = 4000,
+  warmup,
   seed = NA,
   typeprior = "normal",
   s,
+  family = "gaussian",
   ...
 )
 }
@@ -31,12 +32,12 @@ containing data of all variables used in the model for the Single Case}
 
 \item{chains}{Number of Markov chains (defaults to 4).}
 
+\item{iter}{Number of total iterations per chain (including warmup; defaults to 4000).}
+
 \item{warmup}{A positive integer specifying number of warmup (aka burnin) iterations.
 This also specifies the number of iterations used for stepsize adaptation,
 so warmup samples should not be used for inference. The number of warmup should
 not be larger than iter and the default is 2000.}
-
-\item{iter}{Number of total iterations per chain (including warmup; defaults to 4000).}
 
 \item{seed}{The seed for random number generation to make results reproducible.
 If NA (the default), Stan will set the seed randomly.}
@@ -60,6 +61,17 @@ prior distribution.
 If NULL (the default) and \code{typeprior = "normal"} or
 \code{typeprior = "student"} \code{s = 10}, otherwise, if
 \code{typeprior = "cauchy"} \code{s = sqrt(2)/2}.}
+
+\item{family}{a description of the response distribution to be used in
+this model.
+This is a character string naming the family.
+By default, a linear gaussian model is applied.
+\describe{
+\item{gaussian}{the dependent variable is distributed along a Gaussian distribution,
+with \code{identity} link function}
+\item{binomial}{the dependent variable is distributed along a Binomial distribution,
+with \code{logit} link function}
+}}
 
 \item{...}{further arguments to be passed to \strong{stan} function.}
 }

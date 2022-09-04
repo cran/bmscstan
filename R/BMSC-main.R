@@ -17,7 +17,7 @@
 #'
 #' The model to estimate the controls parameters is:
 #'
-#'\ifelse{html}{\out{<center><i>y~N(&beta; X + b Z, &sigma;<sup>2</sup>)</i></center>}}{\eqn{y~N(\beta X + b Z, \sigma^2)}}
+#'\ifelse{html}{\out{<p style="text-align:center;text-style:italic;">y~N(&beta; X + b Z, &sigma;<sup>2</sup>)</p>}}{\eqn{y~N(\beta X + b Z, \sigma^2)}}
 #'
 #'
 #' where \eqn{y} is the controls' dependent variable, \eqn{X} the contrast
@@ -30,7 +30,7 @@
 #'
 #' In order to estimate the coefficients of the Single Case, the formula is the following:
 #'
-#' \ifelse{html}{\out{<center><i>y<sub>pt</sub>~N(&phi; X<sub>pt</sub>, &sigma;<sup>2</sup><sub>pt</<sub>)</i></center>}}{\eqn{y_{pt}~N(\phi X_{pt}, \sigma_{pt}^2)}}
+#' \ifelse{html}{\out{<p style="text-align:center;text-style:italic;">y<sub>pt</sub>~N(&phi; X<sub>pt</sub>, &sigma;<sup>2</sup><sub>pt</sub>)</p>}}{\eqn{y_{pt}~N(\phi X_{pt}, \sigma_{pt}^2)}}
 #'
 #' where \eqn{\phi = \beta + \delta}.
 #'
@@ -115,6 +115,18 @@ NULL
 #' If NULL (the default) and \code{typeprior = "normal"} or
 #' \code{typeprior = "student"} \code{s = 10}, otherwise, if
 #' \code{typeprior = "cauchy"} \code{s = sqrt(2)/2}.
+#'
+#' @param family a description of the response distribution to be used in
+#' this model.
+#' This is a character string naming the family.
+#' By default, a linear gaussian model is applied.
+#' \describe{
+#' \item{gaussian}{the dependent variable is distributed along a Gaussian distribution,
+#' with \code{identity} link function}
+#' \item{binomial}{the dependent variable is distributed along a Binomial distribution,
+#' with \code{logit} link function}
+#' }
+#'
 #' @param ... further arguments to be passed to \strong{stan} function.
 #'
 #' @examples
@@ -183,10 +195,11 @@ NULL
 #'
 #' @export
 BMSC <- function(formula, data_ctrl, data_sc,
-                cores = 1, chains = 4, warmup = 2000,
-                iter = 4000, seed = NA, typeprior = "normal",
-                s, ...){
-
+                cores = 1, chains = 4, iter = 4000,
+                warmup,
+                seed = NA, typeprior = "normal",
+                s, family = "gaussian", ...){
+  ## default s value
   if(missing(s)){
     s <- 10
     if(typeprior == "cauchy") s <- sqrt(2)/2
@@ -206,12 +219,37 @@ BMSC <- function(formula, data_ctrl, data_sc,
   if(missing(data_sc)) stop("the dataframe \"data_sc\" is not specified")
   if(typeprior!="normal"&&typeprior!="cauchy"&&typeprior!="student")
       stop("Not a valid typeprior")
+  if(family!="gaussian"&&family!="binomial")
+    stop("Not a valid family (only gaussian and binomial are supported)")
+
+  if(missing(warmup)) warmup <- round( iter/2 , 0 )
+
+  old_ctrl  <- data_ctrl
+  old_sc    <- data_sc
+
+  if(sum(class(data_ctrl) != "data.frame")>0)
+    data_ctrl <- as.data.frame(data_ctrl)
+
+  if(sum(class(data_sc) != "data.frame")>0)
+    data_sc <- as.data.frame(data_sc)
+
+  for(ic in 1:ncol(data_ctrl))
+    if(inherits(data_ctrl[,ic], "character"))
+      data_ctrl[,ic] <- as.factor(data_ctrl[,ic])
+
+  for(ic in 1:ncol(data_sc))
+    if(inherits(data_sc[,ic], "character"))
+      data_sc[,ic] <- as.factor(data_sc[,ic])
 
   # extract formula's terms
   form.terms      <- attributes(terms(formula))$term.labels
 
   # build contrasts matrices of fixed effects
   fix.terms       <- form.terms[!(grepl("\\|",form.terms))]
+
+
+  # for models with the only intercept
+  if( length( fix.terms) == 0) fix.terms <- 1
 
   fix.formula     <- paste0(" ~",mypaste(fix.terms))
 
@@ -230,16 +268,26 @@ BMSC <- function(formula, data_ctrl, data_sc,
     ran.matrices[[ran]] <- model.matrix(as.formula(paste0(" ~",mypaste(tmp[1]))),data_ctrl)
   }
 
-  stancode <- .building.model(ran.matrices,typeprior,s)
+  stancode <- .building.model(ran.matrices,typeprior,s,family)
 
   datalist <- .building.data.list(ran.matrices,grouping,matrix.fix.ctrl,
-                                 matrix.fix.pt,data_ctrl,data_sc,formula,s)
+                                 matrix.fix.pt,data_ctrl,data_sc,formula,
+                                 s, family)
 
   mdl <- suppressMessages(stan(model_code = stancode, data = datalist, iter = iter,
              chains = chains,cores = cores, warmup = warmup,
              seed = seed, ...))
 
-  out <- list(formula,mdl,data_sc,data_ctrl,datalist,stancode,typeprior,s)
+  out <- list(formula,mdl,old_sc,old_ctrl,datalist,stancode,typeprior,s,family)
+  # 1. formula
+  # 2. mdl
+  # 3. data single case
+  # 4. data controls
+  # 5. list of data for bayesian model
+  # 6. stan code
+  # 7. type of prior
+  # 8. scale s
+  # 9. d.v. family
 
   class(out) <- append(class(out),"BMSC")
 

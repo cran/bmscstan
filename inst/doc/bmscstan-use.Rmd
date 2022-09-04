@@ -41,7 +41,7 @@ of a Multilevel Model, with single case and controls data.
 
 The core function of the **bmscstan** package is `BMSC`,
 whose theoretical assumptions, and its validation are
-reported in [@scandola_romano_2020].
+reported in [@scandola_romano_2021].
 
 The syntax used by the `BMSC` function is extremely similar to the syntax
 used in the `lme4` package. However, the specification of random effects
@@ -89,6 +89,7 @@ dataset there also is an `ID` factor, representing the different 16 control
 participants.
 
 ```{r, fig.height= 6, fig.width= 6}
+library(ggplot2)
 library(bmscstan)
 
 data(BSE)
@@ -163,17 +164,12 @@ syntax should be straightforward.
 
 In this case, we want to fit the following model:
 
-`RT ~ Body.District * Congruency * Side + (Congruency * Side | ID / Body.District)`
+`RT ~ Body.District * Congruency * Side + (Congruency * Side | ID : Body.District)`
 
-Unfortunately, `BMSC` does not directly allow the syntax `ID / Body.District`
+Unfortunately, `BMSC` does not directly allow the syntax `ID : Body.District`
 in the specification of the random effects.
 
-In any case, taking into consideration that `(1 | ID / Body.District)` is a
-short
-version of `(1 | ID : Body.District) + (1 | ID)`, it is possible to solve this
-problem.
-
-It is necessary to create a new variable for `ID : Body.District`
+Therefore, it is necessary to create a new variable for `ID : Body.District`
 
 ```{r}
 data.ctrl$BD_ID <- interaction( data.ctrl$Body.District , data.ctrl$ID )
@@ -181,7 +177,10 @@ data.ctrl$BD_ID <- interaction( data.ctrl$Body.District , data.ctrl$ID )
 
 and the model would be:
 
-`RT ~ Body.District * Congruency * Side + (Congruency * Side | BD_ID) + (Congruency * Side | ID)`
+`RT ~ Body.District * Congruency * Side + (Congruency * Side | BD_ID)`
+
+For further details concerning the random effects available in 
+`bmscstan`, please type `?bmscstan::randomeffect`.
 
 ## Fitting the BMSC model
 
@@ -190,9 +189,10 @@ a single function.
 
 ```{r, warning = FALSE, message = FALSE}
 mdl <- BMSC(formula = RT ~ Body.District * Congruency * Side +
-             (Congruency * Side | ID) + (Congruency * Side | BD_ID),
+             (Congruency * Side | BD_ID),
              data_ctrl = data.ctrl,
              data_sc = data.pt,
+             chains = 2,
              cores = 1,
              seed = 2020)
 ```
@@ -250,7 +250,7 @@ parts:
   difference between the single case and the control group are shown.
 
 ```{r}
-print( summary( mdl ) , digits = 3 )
+print( sum_mdl <- summary( mdl ) , digits = 3 )
 ```
 
 In the second and fourth part of the output, we can observe a descriptive
@@ -285,12 +285,16 @@ is important before of seeing the differences with the single case.
 In this analysis, there are 5 fixed effects which $BF_{10}$ is greater than
 3 [@Raftery1995].
 
-- Intercept $BF_{10} > 150$, $\mu = 199.88$, $95\%~CI = [184.55; 215.072]$.
-- Body District $BF_{10} = 54.8$, $\mu = 17.20$, $95\%~CI = [6.22; 28.931]$.
-- Congruency $BF_{10} = 21.2$, $\mu = 16.10$, $95\%~CI = [4.08; 30.272]$.
-- Side $BF_{10} = 31.9$, $\mu = 19.11$, $95\%~CI = [5.01; 33.919]$.
-- Body District : Congruency $BF_{10} = 3.81$, $\mu = -10.03$,
-  $95\%~CI = [-19.84; -0.375]$.
+```{r}
+tmp <- sum_mdl[[1]][sum_mdl[[1]]$BF10 > 3,c("BF10","mean","2.5%","97.5%")]
+
+colnames(tmp) <- c("$BF_{10}$", "$\\mu$", "low $95\\%~CI$", "up $95\\%~CI$")
+
+knitr::kable(
+  tmp,
+  digits = 3
+)
+```
 
 We can have a general overview of the coefficients of the model with the
 `plot.BMSC` function.
@@ -304,14 +308,16 @@ analysis to better understand the phenomenon. It comes useful the function
 `pairwise.BMSC`.
 
 ```{r}
-pp <- pairwise.BMSC(mdl , contrast = "Body.District2:Congruency2" , who = "control")
+pp <- pairwise.BMSC(mdl = mdl , contrast = "Body.District2:Congruency2" ,
+                    who = "control")
 
 print( pp , digits = 3 )
 ```
 
 The output of this function is divided in two parts:
 
-- a first part, called "Marginal distributions", where the marginal distributions of 
+- a first part, called "Marginal distributions", where the marginal
+  distributions of 
   each level of the coefficients are reported with a $BF_{10}$ against zero.
 - a second part, called "Table of contrasts", with all possible pairwise
   comparisons and their $BF_{10}$.
@@ -376,16 +382,16 @@ plot( mdl ,who = "delta" ) +
 
 The relevant coefficients are:
 
-- Intercept $BF_{10} > 150$, $\mu = 194.97$, $95\%~CI = [179.54; 210.071]$.
-- Body District $BF_{10} = 134$, $\mu = 23.29$, $95\%~CI = [9.66; 36.945]$.
-- Congruency $BF_{10} > 150$, $\mu = 31.04$, $95\%~CI = [16.30; 45.651]$.
-- Side $BF_{10} > 150$, $\mu = 31.60$, $95\%~CI = [16.11; 46.469]$.
-- Body District : Congruency $BF_{10} = 8.47$, $\mu = -16.82$,
-  $95\%~CI = [-31.99; -1.750]$.
-- Body District : Side $BF_{10} = 7.31$, $\mu = -16.61$,
-  $95\%~CI = [-31.49; -1.474]$.
-- Body District : Congruency : Side $BF_{10} = 6.37$, $\mu = -16.85$,
-  $95\%~CI = [-33.74; -11.10]$.
+```{r}
+tmp <- sum_mdl[[3]][sum_mdl[[3]]$BF10 > 3,c("BF10","mean","2.5%","97.5%")]
+
+colnames(tmp) <- c("$BF_{10}$", "$\\mu$", "low $95\\%~CI$", "up $95\\%~CI$")
+
+knitr::kable(
+  tmp,
+  digits = 3
+)
+```
   
 The Intercept coefficient is showing us that the single case is generally
 slower than the Control Sample (generally speaking, when you analyse healthy
@@ -403,7 +409,8 @@ The interactions require the use of the `pairwise.BMSC` function.
 #### The Body District : Congruency interaction:
 
 ```{r}
-p4 <- pairwise.BMSC(mdl , contrast = "Body.District2:Congruency2" , who = "delta")
+p4 <- pairwise.BMSC(mdl , contrast = "Body.District2:Congruency2" ,
+                    who = "delta")
 
 print( p4 , digits = 3 )
 ```
@@ -466,6 +473,156 @@ plot( p7 , type = "hist")[[1]] +
 Here we can see that the effect was pushed by the facilitation
 that the single case had in the Left Congruent Foot condition
 compared to the Control Group.
+
+## Efficient approximate leave-one-out cross-validation for fitted BMSC models
+   
+The **bmscstan** package has wrapper functions to interface with the `loo`
+package, to diagnostic and compare BMSC models.
+
+Leaving-One-Out scores, diagnostics and comparisons are separately
+computed for the 
+Control group and the Single Case data.
+
+In order to see the Leaving-One-Out and the Pareto smoothed importance sampling
+(PSIS), it is possible to use the function `loo.BMSC`:
+
+```{r}
+print( loo1 <- BMSC_loo( mdl ) )
+
+plot( loo1 )
+```
+
+Model comparison can be done by means of the `BMSC_loo_compare`
+function:
+
+```{r}
+mdl.null <- BMSC(formula = RT ~ 1 +
+             (Congruency * Side | BD_ID),
+             data_ctrl = data.ctrl,
+             data_sc = data.pt,
+             cores = 1,
+             chains = 2,
+             seed = 2021)
+
+print( loo2 <- BMSC_loo( mdl.null ) )
+
+plot( loo2 )
+
+BMSC_loo_compare( list( loo1, loo2 ) )
+```
+
+Further details on LOO, PSIS and their use can be found in the **loo**
+package and in @Vehtari2016 and @Vehtari2015.
+
+## A binomial case
+
+In this section, a brief example on how to use the package for binomial data.
+
+We start simulating the data.
+
+```{r}
+######################################
+# simulation of controls' group data
+######################################
+
+# Number of levels for each condition and trials
+NCond  <- 2
+Ntrials <- 20
+NSubjs  <- 40
+
+betas <- c( 0.5 , 0 )
+
+data.sim <- expand.grid(
+  trial      = 1:Ntrials,
+  ID         = factor(1:NSubjs),
+  Cond      = factor(1:NCond)
+)
+
+### d.v. generation
+y <- rep( times = nrow(data.sim) , NA )
+
+# cheap simulation of individual random intercepts
+set.seed(1)
+rsubj <- rnorm(NSubjs , sd = 0.1)
+
+for( i in 1:length( levels( data.sim$ID ) ) ){
+  
+  sel <- which( data.sim$ID == as.character(i) )
+  
+  mm  <- model.matrix(~ 1 + Cond , data = data.sim[ sel , ] )
+  
+  set.seed(1 + i)
+  y[sel] <- mm %*% as.matrix(betas + rsubj[i]) +
+    rnorm( n = Ntrials * NCond )
+  
+}
+
+data.sim$y <- y
+data.sim$bin <- sapply(
+  LaplacesDemon::invlogit(data.sim$y),
+  function(x) rbinom( 1, 1, x)
+  )
+
+data.sim.bin <- aggregate( bin ~ Cond * ID, data = data.sim, FUN = sum)
+data.sim.bin$n <- aggregate( bin ~ Cond * ID,
+                             data = data.sim, FUN = length)$bin
+
+######################################
+# simulation of patient data
+######################################
+
+betas.pt <- c( 0 , 2  )
+
+data.pt <- expand.grid(
+  trial      = 1:Ntrials,
+  Cond      = factor(1:NCond)
+)
+
+### d.v. generation
+mm  <- model.matrix(~ 1 + Cond , data = data.pt )
+
+set.seed(5)
+data.pt$y <- (mm %*% as.matrix(betas.pt + betas) +
+  rnorm( n = Ntrials * NCond ))[,1]
+data.pt$bin <- sapply(
+  LaplacesDemon::invlogit(data.pt$y),
+  function(x) rbinom( 1, 1, x)
+  )
+
+data.pt.bin <- aggregate( bin ~ Cond, data = data.pt, FUN = sum)
+data.pt.bin$n <- aggregate( bin ~ Cond,
+                             data = data.pt, FUN = length)$bin
+
+
+plot(x = data.sim.bin$Cond, y = data.sim.bin$bin, ylim = c(0,20))
+points(x = data.pt.bin$Cond, y = data.pt.bin$bin, col = "red")
+```
+
+The boxplot represents the control participants, the red dot the single case.
+
+Now, we can specify the model:
+
+`cbind(bin, n) ~ Cond`
+
+The right-hand side of the formula follows the usual lmer- and brms-like
+syntax. In the left-hand side of the formula, `brms` and `lme4`
+have divergent notations.
+
+In future, the `bmscstan` package will be able to use both notations,
+for the moment it is necessary the `lme4` notation `cbind(bin, n)`
+where:
+
+* `bin` is the number of observations
+* `n` is the total number of trials
+
+```{r}
+mdlBin <- BMSC(formula = cbind(bin, n) ~ 1 + Cond,
+            data_ctrl = data.sim.bin, data_sc = data.pt.bin, seed = 2022,
+            chains = 2,
+            family = "binomial", cores = 1)
+
+print( summary( mdlBin ) , digits = 3 )
+```
 
 ## Conclusions
 
